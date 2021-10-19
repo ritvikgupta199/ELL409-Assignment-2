@@ -58,5 +58,5 @@ class TestDataLoader:
 
 
 
-data = DataLoader('data/2019MT10512.csv')
-data.get_binary_data(0.5,(6,7))
+# data = DataLoader('data/2019MT10512.csv')
+# data.get_binary_data(0.5,(6,7))
