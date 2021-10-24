@@ -5,11 +5,15 @@ import cvxopt as co
 import utils
 import random
 
+EPS = 1e-5
 
 class LIBSVMModel:
     def __init__(self, c, kernel, gamma):
         self.c = c
-        self.kernel = kernel
+        if kernel == 'linear':
+            self.kernel = svm.LINEAR
+        else:
+            self.kernel = svm.RBF
         self.gamma = gamma
         self.model = None
 
@@ -24,13 +28,13 @@ class LIBSVMModel:
 
     def get_train_preds(self, x_data, y_data):
         pred_labels, pred_acc, pred_val = svm.svm_predict(
-            y_data, x_data, self.model, options=f'-q')
+            y_data, x_data, self.model, options='-q')
         return pred_labels, pred_acc[0]
 
     def get_test_preds(self, x_data):
         y_data = np.ones(len(x_data))
         pred_labels, pred_acc, pred_val = svm.svm_predict(
-            y_data, x_data, self.model, options=f'-q')
+            y_data, x_data, self.model, options='-q')
         pred_labels = np.array(pred_labels)
         return pred_labels
 
@@ -40,6 +44,7 @@ class CVXModel:
         self.c = c
         self.kernel = kernel
         self.gamma = gamma
+        self.alphas = None
 
     def get_xmat(self, x1, x2):
         if self.kernel == 'linear':
@@ -69,6 +74,18 @@ class CVXModel:
         sol = co.solvers.qp(P, q, G, h, A, b, options={'show_progress': True})
         alphas = np.array(sol['x'])
         return alphas
+
+    def train(self, train_x, train_y):
+        print(f'Training SVM')
+        t = time.time()
+        self.alphas = self.solve_opt(train_x, train_y)
+        sv_zero = np.where(self.alphas > EPS)
+        sv_c = np.where(self.alphas <= self.c-EPS)
+        sv_indices = np.intersect1d(sv_zero, sv_c)
+        x_sv, y_sv = train_x[sv_indices], train_y[sv_indices]
+        alpha_sv = self.alphas[sv_indices]
+
+        print(f'Time Taken: {time.time()-t}s')
 
 
 class SMOSolver:

@@ -11,7 +11,7 @@ class DataLoader:
         self.num_cls = len(np.unique(data_y))
         data = [[] for i in range(self.num_cls)]
         for (x, y) in zip(data_x, data_y):
-            idx = int(y)-1
+            idx = int(y)
             data[idx].append(x)
         data = [np.array(d) for d in data]
         return data
@@ -22,7 +22,7 @@ class DataLoader:
             n = len(d)
             s = int(np.floor(split * n))
             x_t, x_v = d[:s], d[s:n]
-            y_t, y_v = (i+1.0)*np.ones(s), (i+1.0)*np.ones(n-s)
+            y_t, y_v = (i)*np.ones(s), (i)*np.ones(n-s)
             train_x.append(x_t)
             train_y.append(y_t)
             valid_x.append(x_v)
@@ -55,8 +55,6 @@ class TestDataLoader:
     def get_data(self, n_feat=25):
         x = self.data_x[:, :n_feat]
         return x
-
-
 
 # data = DataLoader('data/2019MT10512.csv')
 # data.get_binary_data(0.5,(6,7))
