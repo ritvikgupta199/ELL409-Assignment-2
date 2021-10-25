@@ -6,6 +6,7 @@ import utils
 import random
 
 EPS = 1e-10
+TOL = 1e-5
 
 
 class LIBSVMModel:
@@ -81,7 +82,7 @@ class CVXModel:
             alphas = np.array(sol['x'])
         else:
             solver = SMOSolver(self.c, self.kernel, self.gamma)
-            alphas = solver.solve(train_x, train_y, 1, 1e-5)
+            alphas = solver.solve(train_x, train_y, 10)
         return alphas
 
     def get_sv_b(self, train_x, train_y):
@@ -162,7 +163,7 @@ class SMOSolver:
     def get_eta(self, xi, xj):
         return 2*self.get_kernel(xi, xj)-self.get_kernel(xi, xi)-self.get_kernel(xj, xj)
 
-    def solve(self, train_x, train_y, max_passes, tol):
+    def solve(self, train_x, train_y, max_passes):
         n = train_x.shape[0]
         self.reset(n)
         passes = 0
@@ -171,7 +172,7 @@ class SMOSolver:
             for i in range(n):
                 xi, yi = train_x[i], train_y[i]
                 ei = self.f_x(xi, train_x, train_y) - yi
-                if (yi*ei < -tol and self.alphas[i] < self.c) or (yi*ei > tol and self.alphas[i] > 0):
+                if (yi*ei < -TOL and self.alphas[i] < self.c) or (yi*ei > TOL and self.alphas[i] > 0):
                     j = random.choice(list(range(0, i)) + list(range(i+1, n)))
                     xj, yj = train_x[j], train_y[j]
                     ej = self.f_x(xj, train_x, train_y) - yj
@@ -184,7 +185,7 @@ class SMOSolver:
                         continue
                     self.alphas[j] -= (yj*(ei-ej)) / eta
                     self.alphas[j] = min(H, max(self.alphas[j], L))
-                    if abs(self.alphas[j]-alpha_jo) < 1e-5:
+                    if abs(self.alphas[j]-alpha_jo) < TOL:
                         continue
                     self.alphas[i] += yi*yj*(alpha_jo-self.alphas[j])
                     self.b = self.get_b(ei, ej, xi, xj, yi,

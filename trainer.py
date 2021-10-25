@@ -17,6 +17,7 @@ def train_svm(data_path, split, n_feat, is_multi, cls, model_type, c, kernel, ga
         model = CVXModel(c, kernel, gamma, 'smo')
     else:
         print('Model not implemented')
+        return
     model.train(train_x, train_y, quiet)
 
     train_preds, train_acc = model.get_train_preds(train_x, train_y)
@@ -42,6 +43,3 @@ def train_test_svm(train_path, test_path, n_feat, c, kernel, gamma):
     print(f'Training Accuracy: {train_acc}')
     test_preds = model.get_test_preds(test_x)
     return test_preds
-
-train_svm('data/2019MT10512.csv', 0.7, 25, False, (7,8), 'libsvm', 5, 'linear', 0.05, False)
-train_svm('data/2019MT10512.csv', 0.7, 10, False, (7,8), 'libsvm', 5, 'linear', 0.05, False)
