@@ -2,7 +2,7 @@ import numpy as np
 from dataloader import DataLoader, TestDataLoader
 from model import LIBSVMModel, CVXModel
 
-def train_svm(data_path, split, n_feat, is_multi, cls, model_type, c, kernel, gamma, method, quiet):
+def train_svm(data_path, split, n_feat, is_multi, cls, model_type, c, kernel, gamma, quiet):
     dataloader = DataLoader(data_path)
     if is_multi:
         train_x, train_y, valid_x, valid_y = dataloader.get_data(split, n_feat)
@@ -12,7 +12,9 @@ def train_svm(data_path, split, n_feat, is_multi, cls, model_type, c, kernel, ga
     if model_type == 'libsvm':
         model = LIBSVMModel(c, kernel, gamma)
     elif model_type == 'cvxopt' and not is_multi:
-        model = CVXModel(c, kernel, gamma, method)
+        model = CVXModel(c, kernel, gamma, 'cvxopt')
+    elif model_type == 'smo' and not is_multi:
+        model = CVXModel(c, kernel, gamma, 'smo')
     else:
         print('Model not implemented')
     model.train(train_x, train_y, quiet)
@@ -41,4 +43,5 @@ def train_test_svm(train_path, test_path, n_feat, c, kernel, gamma):
     test_preds = model.get_test_preds(test_x)
     return test_preds
 
-train_svm('data/2019MT10512.csv', 0.7, 25, False, (8,2), 'cvxopt', 0.01, 'linear', None, 'smo', False)
+train_svm('data/2019MT10512.csv', 0.7, 25, False, (7,8), 'libsvm', 5, 'linear', 0.05, False)
+train_svm('data/2019MT10512.csv', 0.7, 10, False, (7,8), 'libsvm', 5, 'linear', 0.05, False)

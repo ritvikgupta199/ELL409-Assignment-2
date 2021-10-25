@@ -5,7 +5,7 @@ import cvxopt as co
 import utils
 import random
 
-EPS = 1e-5
+EPS = 1e-10
 
 
 class LIBSVMModel:
@@ -74,14 +74,14 @@ class CVXModel:
         return P, q, G, h, A, b
 
     def solve_opt(self, train_x, train_y, quiet):
-        if self.method == 'cvx':
+        if self.method == 'cvxopt':
             P, q, G, h, A, b = self.get_matrices(train_x, train_y)
             sol = co.solvers.qp(P, q, G, h, A, b, options={
                                 'show_progress': not quiet})
             alphas = np.array(sol['x'])
         else:
             solver = SMOSolver(self.c, self.kernel, self.gamma)
-            alphas = solver.solve(train_x, train_y, 1000, 1e-5)
+            alphas = solver.solve(train_x, train_y, 1, 1e-5)
         return alphas
 
     def get_sv_b(self, train_x, train_y):
@@ -108,7 +108,7 @@ class CVXModel:
             print(f'Time Taken: {time.time()-t}s')
 
     def get_train_preds(self, x_data, y_data):
-        preds = (self.alphas * self.y_sv.reshape(-1, 1) *
+        preds = (self.alphas.reshape(-1, 1) * self.y_sv.reshape(-1, 1) *
                  self.get_xmat(self.x_sv, x_data)).sum(0) + self.b
         pred_labels = np.where(preds >= 0, 1, -1)
         acc = 100 * (y_data == pred_labels).sum() / y_data.shape[0]
@@ -126,10 +126,17 @@ class SMOSolver:
         self.alphas, self.b = np.zeros(n), 0.0
 
     def f_x(self, x, train_x, train_y):
+        x = x.reshape(1, -1)
         if self.kernel == 'linear':
-            return self.alphas*train_y*np.matmul(train_x, x.T).sum()+self.b
+            return ((self.alphas*train_y).reshape(-1, 1)*utils.get_linear_x(train_x, x)).sum(0)+self.b
         else:
-            return self.alphas*train_y*np.exp(-self.gamma*np.square(train_x-x).sum(1))
+            return ((self.alphas*train_y).reshape(-1, 1)*utils.get_gaussian_x(train_x, x, self.gamma)).sum(0)+self.b
+
+    def get_kernel(self, x1, x2):
+        if self.kernel == 'linear':
+            return utils.linear_kernel(x1, x2)
+        else:
+            return utils.gaussian_kernel(x1, x2, self.gamma)
 
     def get_lh(self, yi, yj, i, j):
         if yj == yi:
@@ -141,16 +148,19 @@ class SMOSolver:
         return L, H
 
     def get_b(self, ei, ej, xi, xj, yi, yj, alpha_io, alpha_jo, i, j):
-        b1 = self.b - ei - yi*(self.alphas[i]-alpha_io)*self.kernel(
-            xi, xi) - yj*(self.alphas[j]-alpha_jo)*self.kernel(xi, xj)
-        b2 = self.b - ej - yi*(self.alphas[i]-alpha_io)*self.kernel(
-            xi, xj) - yj*(self.alphas[j]-alpha_jo)*self.kernel(xj, xj)
+        b1 = self.b - ei - yi*(self.alphas[i]-alpha_io)*self.get_kernel(
+            xi, xi) - yj*(self.alphas[j]-alpha_jo)*self.get_kernel(xi, xj)
+        b2 = self.b - ej - yi*(self.alphas[i]-alpha_io)*self.get_kernel(
+            xi, xj) - yj*(self.alphas[j]-alpha_jo)*self.get_kernel(xj, xj)
         if self.alphas[i] > 0 and self.alphas[i] < self.c:
             return b1
         elif self.alphas[j] > 0 and self.alphas[j] < self.c:
             return b2
         else:
             return (b1+b2)/2
+
+    def get_eta(self, xi, xj):
+        return 2*self.get_kernel(xi, xj)-self.get_kernel(xi, xi)-self.get_kernel(xj, xj)
 
     def solve(self, train_x, train_y, max_passes, tol):
         n = train_x.shape[0]
@@ -161,23 +171,22 @@ class SMOSolver:
             for i in range(n):
                 xi, yi = train_x[i], train_y[i]
                 ei = self.f_x(xi, train_x, train_y) - yi
-                if (yi*ei < -tol & self.alphas[i] < self.c) or (yi*ei > tol & self.alphas[i] > 0):
-                    j = random.choice(range(0, i) + range(i+1, n))
+                if (yi*ei < -tol and self.alphas[i] < self.c) or (yi*ei > tol and self.alphas[i] > 0):
+                    j = random.choice(list(range(0, i)) + list(range(i+1, n)))
                     xj, yj = train_x[j], train_y[j]
                     ej = self.f_x(xj, train_x, train_y) - yj
                     alpha_io, alpha_jo = self.alphas[i], self.alphas[j]
                     L, H = self.get_lh(yi, yj, i, j)
                     if L == H:
                         continue
-                    eta = 2*self.kernel(xi, xj)-self.kernel(
-                        xi, xi)-self.kernel(xj, xj)
+                    eta = self.get_eta(xi, xj)
                     if eta >= 0:
                         continue
-                    self.alphas[j] -= (yi*(ei-ej)) / eta
+                    self.alphas[j] -= (yj*(ei-ej)) / eta
                     self.alphas[j] = min(H, max(self.alphas[j], L))
                     if abs(self.alphas[j]-alpha_jo) < 1e-5:
                         continue
-                    self.alphas += yi*yj*(alpha_jo-self.alphas[j])
+                    self.alphas[i] += yi*yj*(alpha_jo-self.alphas[j])
                     self.b = self.get_b(ei, ej, xi, xj, yi,
                                         yj, alpha_io, alpha_jo, i, j)
                     n_ch_alphas += 1

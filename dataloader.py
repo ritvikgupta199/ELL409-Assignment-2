@@ -37,8 +37,8 @@ class DataLoader:
         x1, x2 = self.data[c1-1], self.data[c2-1]
         n1, n2 = len(x1), len(x2)
         s1, s2 = int(np.floor(split * n1)), int(np.floor(split * n2))
-        train_x = np.concatenate((x1[:s1], x2[:s2]))
-        valid_x = np.concatenate((x1[s1:n1], x2[s2:n2]))
+        train_x = np.concatenate((x1[:s1, :n_feat], x2[:s2, :n_feat]))
+        valid_x = np.concatenate((x1[s1:n1, :n_feat], x2[s2:n2, :n_feat]))
         train_y = np.concatenate((-1.0*np.ones(s1), np.ones(s2)))
         valid_y = np.concatenate((-1.0*np.ones(n1-s1), np.ones(n2-s2)))
         return train_x, train_y, valid_x, valid_y
